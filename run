@@ -5,36 +5,18 @@ PP=$(dirname $0)
 [ -f $PP/conf.ini ] || exit -1
 . $PP/conf.ini	
 
-if [ -z "$1" ] || [ -z "$2" ]
-then
-	echo Usage: ./run.sh MODEL CASE.xml [gpus]
-	exit -1
-fi
-
-CASE=$2
 MODEL=$1
-GPUS=$3
-if [ -z "$GPUS" ]
-then
-	GPUS=1
-fi
+shift
+CASE=$1
+shift
+UNITS=$1
+shift
+TIME=$1
+shift
 
-echo Trying to run $CASE with $MODEL model on $GPUS gpus...
-
-if [ $GPUS -gt 1 ]
+if [ -z "$MODEL" ] || [ -z "$CASE" ]
 then
-	GPN=2
-	PPN=24
-	NODES=$[$GPUS/2]
-else
-	GPN=1
-	PPN=1
-	NODES=1
-fi
-
-if [ $GPUS -ne $[$NODES*$GPN] ]
-then
-	echo Requested number of GPUS \($GPUS\) is not $NODES x $GPN
+	echo Usage: ./run MODEL CASE.xml [cores]
 	exit -1
 fi
 
@@ -43,9 +25,6 @@ then
 	echo No case file: $CASE
 	exit -1
 fi
-
-NAME=CLB:$( basename `pwd` ):$CASE
-NCPU=$GPUS
 
 SOLVER=$TCLB/CLB/$MODEL/main
 
@@ -56,30 +35,72 @@ then
 	exit -1
 fi
 
-sbatch <<EOF
+if [[  "z$TIME" == "z" ]]
+then
+	TIME="1:00:00"
+fi
+	
+if [ -z "$UNITS" ]
+then
+	UNITS=1
+fi
+
+if [ $UNITS -gt $MAX_UNITS_PER_NODE ]
+then
+	UNITS_PER_NODE=$MAX_UNITS_PER_NODE
+	NODES=$[$UNITS/$UNITS_PER_NODE]
+	CORES_PER_UNIT=$CORES_PER_UNIT_FULL
+else
+	UNITS_PER_NODE=$UNITS
+	NODES=1
+fi
+
+
+if [ $UNITS -ne $[$NODES*$UNITS_PER_NODE] ]
+then
+	echo Requested number of cores/gpus \($UNITS\) is not $NODES x $UNITS_PER_NODE
+	exit -1
+fi
+
+NAME=CLB:$( basename `pwd` ):$CASE
+NCPU=$GPUS
+CORES=$[$UNITS*$CORES_PER_UNIT]
+
+echo "Trying to run $CASE with $MODEL model on $UNITS cores/gpus ($NODES x $UNITS_PER_NODE x $CORES_PER_UNIT)..."
+
+NAME=CLB:$CASE
+
+if test "$RUN_GPU" == "y"
+then
+	GPU_HEADER="#SBATCH --gres=gpu:$UNITS_PER_NODE"
+fi
+
+sbatch "$@" <<EOF
 #!/bin/bash -l
 #SBATCH -J $NAME
 #SBATCH -N $NODES
-#SBATCH -n $NCPU
-#SBATCH --ntasks-per-node=$PPN
-#SBATCH --time=$4 
+#SBATCH -n $UNITS
+#SBATCH -c $CORES_PER_UNIT
+#SBATCH --ntasks-per-node=$UNITS_PER_NODE
+#SBATCH --time=$TIME 
 #SBATCH -A $GRANT
-#SBATCH -p plgrid-gpu
-#SBATCH --gres=gpu:$GPN
+#SBATCH -p $MAINQ
+$GPU_HEADER
  
      cd \$SLURM_SUBMIT_DIR 
 echo "###### Nodes:          #######"
-     srun --ntasks-per-node=1 /bin/hostname
-echo "###### nVidia-SMI:     #######"
-     nvidia-smi
+     srun /bin/hostname
 echo "###### Loading modules #######"
-
-	module load apps/r/3.4.4
-	module load plgrid/tools/openmpi/2.1.1-gcc-6.4.0
-	module load plgrid/apps/cuda/9.0
-	module load libs/python-numpy/1.14.2-python-2.7
-
+	source $PP/conf.ini
+	mod_add=false
+	source $PP/mods.ini RUN
 echo "###### --------------- #######"
 echo ""
-     mpirun $SOLVER $CASE
+	trap "say Errored" ERR
+	trap "say Terminated" TERM
+	trap "say Killed" KILL
+	set -e
+	say Started
+	$RUN_COMMAND $SOLVER $CASE
+	say Finished
 EOF
