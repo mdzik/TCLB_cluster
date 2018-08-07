@@ -1,0 +1,37 @@
+#!/bin/bash
+
+PP=$(dirname $0)
+[ -f $PP/conf.ini ] || $PP/config
+[ -f $PP/conf.ini ] || exit -1
+. $PP/conf.ini	
+
+if [[  "x$1" == "x" ]]
+then
+    AOK=""
+else
+    AOK="#SBATCH  --depend=afterany:$1"
+fi 
+
+sbatch  <<EOF
+#!/bin/bash -l
+#SBATCH -J postprocess
+#SBATCH -N 1
+#SBATCH -n 24
+#SBATCH --time=30:00 
+#SBATCH -A $GRANT
+#SBATCH -p plgrid-short
+$AOK
+ 
+     cd \$SLURM_SUBMIT_DIR 
+echo "###### Nodes:          #######"
+     srun --ntasks-per-node=1 /bin/hostname
+echo "###### nVidia-SMI:     #######"
+#     nvidia-smi
+echo "###### Loading modules #######"
+     module load tools/openmpi
+#     module load apps/cuda
+     module load tools/paraview/5.0.1
+echo "###### --------------- #######"
+echo ""
+    PYTHONPATH=$PYTHONPATH:~/TCLB_tools/Python:~/python  pvpython ./postprocess_collect.py 
+EOF

@@ -12,30 +12,19 @@ then
 fi
 
 CASE=$2
+TIME=$4
+
+NUMCASES=$( cat $CASE | wc -l )
+
+echo "Detected $NUMCASES cases"
+
 MODEL=$1
 GPUS=$3
+TIME=0:30:00
+
 if [ -z "$GPUS" ]
 then
 	GPUS=1
-fi
-
-echo Trying to run $CASE with $MODEL model on $GPUS gpus...
-
-if [ $GPUS -gt 1 ]
-then
-	GPN=2
-	PPN=24
-	NODES=$[$GPUS/2]
-else
-	GPN=1
-	PPN=1
-	NODES=1
-fi
-
-if [ $GPUS -ne $[$NODES*$GPN] ]
-then
-	echo Requested number of GPUS \($GPUS\) is not $NODES x $GPN
-	exit -1
 fi
 
 if [ ! -f "$CASE" ]
@@ -44,7 +33,7 @@ then
 	exit -1
 fi
 
-NAME=CLB:$( basename `pwd` ):$CASE
+NAME=CLB:$CASE
 NCPU=$GPUS
 
 SOLVER=$TCLB/CLB/$MODEL/main
@@ -56,30 +45,28 @@ then
 	exit -1
 fi
 
+
+
 sbatch <<EOF
 #!/bin/bash -l
 #SBATCH -J $NAME
-#SBATCH -N $NODES
+#SBATCH -N 1
 #SBATCH -n $NCPU
-#SBATCH --ntasks-per-node=$PPN
-#SBATCH --time=$4 
+#SBATCH --time=$TIME 
 #SBATCH -A $GRANT
-#SBATCH -p plgrid-gpu
-#SBATCH --gres=gpu:$GPN
+#SBATCH -p plgrid-short
+#SBATCH --array=1-$NUMCASES
  
      cd \$SLURM_SUBMIT_DIR 
 echo "###### Nodes:          #######"
      srun --ntasks-per-node=1 /bin/hostname
-echo "###### nVidia-SMI:     #######"
-     nvidia-smi
 echo "###### Loading modules #######"
-
-	module load apps/r/3.4.4
-	module load plgrid/tools/openmpi/2.1.1-gcc-6.4.0
-	module load plgrid/apps/cuda/9.0
-	module load libs/python-numpy/1.14.2-python-2.7
-
+     module load tools/openmpi
+     module load apps/cuda
 echo "###### --------------- #######"
 echo ""
-     mpirun $SOLVER $CASE
+     acase=\$(cat $CASE | head -n \$SLURM_ARRAY_TASK_ID | tail -n 1)
+     cd \$(dirname \$acase)
+     echo \$(pwd)
+     mpirun $SOLVER \$(basename \$acase)
 EOF
