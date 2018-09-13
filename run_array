@@ -81,11 +81,20 @@ echo "###### Nodes:          #######"
 echo "###### nVidia-SMI:     #######"
      nvidia-smi
 echo "###### Loading modules #######"
-     module load tools/openmpi
-     module load apps/cuda
+
+	module load plgrid/apps/r/3.4.4
+	module load plgrid/tools/openmpi/2.1.1-gcc-6.4.0
+	module load plgrid/apps/cuda/9.0
+	module load plgrid/libs/python-numpy/1.14.2-python-2.7
+
+
 echo "###### --------------- #######"
 echo ""
      acase=\$(cat $CASE | head -n \$SLURM_ARRAY_TASK_ID | tail -n 1)
      cd \$(dirname \$acase)
      mpirun $SOLVER \$(basename \$acase)
+     if test \$SLURM_ARRAY_TASK_ID -ge $(cat $CASE | wc -l)
+     then
+         pb_msg 'Array job finished'
+     fi
 EOF

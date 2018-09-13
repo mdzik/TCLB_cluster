@@ -28,10 +28,11 @@ echo "###### Nodes:          #######"
 echo "###### nVidia-SMI:     #######"
 #     nvidia-smi
 echo "###### Loading modules #######"
-     module load tools/openmpi
+     module load plgrid/tools/openmpi
 #     module load apps/cuda
-     module load tools/paraview/5.0.1
+     module load plgrid/tools/paraview/5.0.1
 echo "###### --------------- #######"
 echo ""
     PYTHONPATH=$PYTHONPATH:~/TCLB_tools/Python:~/python  pvpython ./postprocess_collect.py 
+    pb_msg 'Postprocess job finished'
 EOF
