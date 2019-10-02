@@ -17,9 +17,9 @@ sbatch  <<EOF
 #SBATCH -J postprocess
 #SBATCH -N 1
 #SBATCH -n 24
-#SBATCH --time=30:00 
+#SBATCH --time=1:00:00 
 #SBATCH -A $GRANT
-#SBATCH -p plgrid-short
+#SBATCH -p plgrid-testing
 $AOK
  
      cd \$SLURM_SUBMIT_DIR 

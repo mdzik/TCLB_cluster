@@ -21,6 +21,14 @@ echo "Detected $NUMCASES cases"
 MODEL=$1
 GPUS=$3
 
+if [[  "x$5" == "x" ]]
+then
+    AOK=""
+else
+    AOK="#SBATCH  --depend=afterany:$5"
+fi 
+
+
 if [ -z "$GPUS" ]
 then
 	GPUS=1
@@ -74,8 +82,9 @@ sbatch <<EOF
 #SBATCH -p plgrid-gpu
 #SBATCH --gres=gpu:$PPN
 #SBATCH --array=1-$NUMCASES
- 
-     cd \$SLURM_SUBMIT_DIR 
+$AOK
+     cd \$SLURM_SUBMIT_DIR
+     pwd 
 echo "###### Nodes:          #######"
      srun --ntasks-per-node=1 /bin/hostname
 echo "###### nVidia-SMI:     #######"
